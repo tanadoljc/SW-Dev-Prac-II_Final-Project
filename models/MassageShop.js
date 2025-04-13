@@ -35,6 +35,16 @@ const MassageShopSchema = new mongoose.Schema({
         type: String,
         required: [true, 'Please add a closing time']
     }
+}, {
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+});
+
+MassageShopSchema.virtual('reservations', {
+    ref: 'Reservation',
+    localField: '_id',
+    foreignField: 'massageShop',
+    justOne: false
 });
 
 module.exports = mongoose.model('MassageShop',MassageShopSchema);

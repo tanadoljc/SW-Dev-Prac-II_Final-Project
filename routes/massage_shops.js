@@ -1,8 +1,10 @@
 const express = require('express');
 const { getMassageShops, getMassageShop, createMassageShop, updateMassageShop, deleteMassageShop } = require('../controllers/massage_shops');
+const reservationRouter = require('./reservations');
 const router = express.Router();
 
 const { protect, authorize } = require('../middleware/auth');
+router.use('/:massageShopId/reservations', reservationRouter);
 
 router.route('/')
   .get(getMassageShops)
