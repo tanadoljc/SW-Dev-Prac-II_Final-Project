@@ -12,7 +12,7 @@ router.route('/')
 
 router.route('/:id')
   .get(getMassageShop)
-  .put(protect, authorize('admin'), updateMassageShop)
+  .patch(protect, authorize('admin'), updateMassageShop)
   .delete(protect, authorize('admin'), deleteMassageShop);
 
 module.exports = router;

@@ -14,7 +14,8 @@ exports.getMassageShops = async (req, res, next) => {
     removeFields.forEach(param => delete reqQuery[param]);
 
     // handle [lt, lte, gt, gte]
-    let queryStr = JSON.stringify(req.query);
+    let queryStr = JSON.stringify(reqQuery);
+    console.log(queryStr)
     queryStr = queryStr.replace(/\b(gt|gte|lt|lte|in)\b/g, match => `$${match}`);
 
     // query ------------------------------------
