@@ -134,7 +134,11 @@ exports.deleteReservation = async (req, res, next) => {
             return res.status(404).json({ success: false, message: `No reservation with the id of ${req.params.id}` });
         }
 
-        await reservation.remove();
+        if( reservation.user.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(401).json({ success: false, message: `User with id of ${req.user.id} is not authorized to delete this reservation` });
+        }
+
+        await reservation.deleteOne({ _id: req.params.id });
 
         res.status(200).json({ success: true, data: {} });
     } catch (err) {
