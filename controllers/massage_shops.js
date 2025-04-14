@@ -26,6 +26,7 @@ exports.getMassageShops = async (req, res, next) => {
         const fields = req.query.select.split(',').join(' ');
         query = query.select(fields);
     }
+    
     // "sort" fields
     if (req.query.sort) {
         const sortBy = req.query.sort.split(',').join(' ');
@@ -39,7 +40,6 @@ exports.getMassageShops = async (req, res, next) => {
     const limit = parseInt(req.query.limit, 10) || 25;
     const startIndex = (page - 1) * limit;
     const endIndex = page * limit;
-    // console.log(startIndex, endIndex);
 
     try {
         const total = await MassageShop.countDocuments();
@@ -61,7 +61,7 @@ exports.getMassageShops = async (req, res, next) => {
             }
         }
         
-        res.status(200).json({ success: true, count: massageShops.length, data: massageShops });
+        res.status(200).json({ success: true, count: massageShops.length, pagination, data: massageShops });
     } catch (err) {
         res.status(400).json({ success: false });
     }
