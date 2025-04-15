@@ -129,9 +129,14 @@ exports.getReservation = async (req, res, next) => {
             path: 'massageShop',
             select: 'name province tel'
         });
-
+        
         if (!reservation) {
             return res.status(400).json({ success: false, message: `No reservation with the id of ${req.params.id}` });
+        }
+
+        // Make sure user is reservation owner
+        if (reservation.user.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(401).json({ success: false, message: `User with id of ${req.user.id} is not authorized to update this reservation` });
         }
 
         res.status(200).json({ success: true, data: reservation });
