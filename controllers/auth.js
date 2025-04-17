@@ -19,18 +19,6 @@ const sendTokenResponse = (user, statusCode, res) => {
     })
 }
 
-const expireToken = (statusCode, res) => {
-    const options = {
-        expires: new Date(0), 
-        httpOnly: true
-    };
-
-    res.status(statusCode).cookie('token', '', options).json({
-        success: true,
-        message: 'Logged out successfully'
-    })
-}
-
 exports.register = async (req, res, next) => {
     try {
         const { name, telephone, email, password, role } = req.body;
@@ -87,7 +75,7 @@ exports.logout = async (req, res, next) => {
 
     res.status(200).json({
         success: true,
-        data: {}
+        message: 'Logged out successfully'
     });
 };
 
