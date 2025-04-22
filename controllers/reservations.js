@@ -155,6 +155,15 @@ exports.addReservation = async (req, res, next) => {
 
         const massageShop = await MassageShop.findById(req.params.massageShopId);
 
+        function isValidTimeFormat(timeStr) {
+            const regex = /^(0?[1-9]|1[0-2]):[0-5][0-9] (AM|PM)$/;
+            return regex.test(timeStr);
+        }
+
+        if(!isValidTimeFormat(req.body.startTime) || !isValidTimeFormat(req.body.endTime)) {
+            return res.status(400).json({ success: false, message: 'Invalid time format. Use hh:mm AM/PM' });
+        }
+
         if (!massageShop) {
             return res.status(404).json({ success: false, message: `No massage shop with the id of ${req.params.massageShopId}` });
         }
@@ -164,16 +173,45 @@ exports.addReservation = async (req, res, next) => {
         req.body.user = req.user.id;
 
         // Check for existing reservations
-        const existingReservations = await Reservation.find({ user: req.user.id });
+        const existingReservationsById = await Reservation.find({ user: req.user.id });
 
         // If the user is not an admin, they can only create 3 reservations
-        if (existingReservations.length >= 3 && req.user.role !== 'admin') {
+        if (existingReservationsById.length >= 3 && req.user.role !== 'admin') {
             return res.status(400).json({ success: false, message: `User with id of ${req.user.id} has already created 3 reservations` });
+        }
+
+        const dateOnly = new Date(req.body.resvDate).toISOString().split('T')[0];
+
+        const existingReservations = await Reservation.find({ massageShop: req.body.massageShop });
+
+        function timeStringToMinutes(timeStr) {
+            const [time, modifier] = timeStr.split(' ');
+            let [hours, minutes] = time.split(':').map(Number);
+        
+            if (modifier === 'PM' && hours !== 12) hours += 12;
+            if (modifier === 'AM' && hours === 12) hours = 0;
+        
+            return hours * 60 + minutes;
+        }
+        
+        const startTimeMinutes = timeStringToMinutes(req.body.startTime);
+        const endTimeMinutes = timeStringToMinutes(req.body.endTime);
+
+        const isOverlap = existingReservations.some((resv) => {
+            const resvStartTimeMinutes = timeStringToMinutes(resv.startTime);
+            const resvEndTimeMinutes = timeStringToMinutes(resv.endTime);
+
+            return (
+                (startTimeMinutes <= resvEndTimeMinutes && endTimeMinutes >= resvStartTimeMinutes)
+            );
+        });
+
+        if (isOverlap) {
+            return res.status(400).json({ success: false, message: 'This time slot already reserved' });
         }
 
         const reservation = await Reservation.create(req.body);
         res.status(200).json({ success: true, data: reservation });
-
     } catch (err) {
         console.log(err);
         return res.status(500).json({ success: false, error: 'Cannot create Reservation' });
