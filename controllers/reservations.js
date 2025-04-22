@@ -182,7 +182,13 @@ exports.addReservation = async (req, res, next) => {
 
         const dateOnly = new Date(req.body.resvDate).toISOString().split('T')[0];
 
-        const existingReservations = await Reservation.find({ massageShop: req.body.massageShop });
+        const existingReservations = await Reservation.find({ 
+            massageShop: req.body.massageShop, 
+            resvDate: {
+                $gte: new Date(`${dateOnly}T00:00:00.000Z`),
+                $lt: new Date(`${dateOnly}T23:59:59.999Z`)
+            }
+         });
 
         function timeStringToMinutes(timeStr) {
             const [time, modifier] = timeStr.split(' ');
@@ -234,12 +240,49 @@ exports.updateReservation = async (req, res, next) => {
             return res.status(401).json({ success: false, message: `User with id of ${req.user.id} is not authorized to update this reservation` });
         }
 
+        const merged = { ...reservation.toObject(), ...req.body };
+        const dateOnly = new Date(merged.resvDate).toISOString().split('T')[0];
+
+        const existingReservations = await Reservation.find({ 
+            massageShop: merged.massageShop, 
+            resvDate: {
+                $gte: new Date(`${dateOnly}T00:00:00.000Z`),
+                $lt: new Date(`${dateOnly}T23:59:59.999Z`)
+            }
+         });
+
+        function timeStringToMinutes(timeStr) {
+            const [time, modifier] = timeStr.split(' ');
+            let [hours, minutes] = time.split(':').map(Number);
+        
+            if (modifier === 'PM' && hours !== 12) hours += 12;
+            if (modifier === 'AM' && hours === 12) hours = 0;
+        
+            return hours * 60 + minutes;
+        }
+        
+        const startTimeMinutes = timeStringToMinutes(merged.startTime);
+        const endTimeMinutes = timeStringToMinutes(merged.endTime);
+
+        const isOverlap = existingReservations.some((resv) => {
+            const resvStartTimeMinutes = timeStringToMinutes(resv.startTime);
+            const resvEndTimeMinutes = timeStringToMinutes(resv.endTime);
+
+            return (
+                (startTimeMinutes <= resvEndTimeMinutes && endTimeMinutes >= resvStartTimeMinutes)
+            );
+        });
+
+        if (isOverlap) {
+            return res.status(400).json({ success: false, message: 'This time slot already reserved' });
+        }
+
         reservation = await Reservation.findByIdAndUpdate(req.params.id, req.body, {
             new: true,
             runValidators: true
         });
-
-        res.status(200).json({ success: true, data: reservation });
+        
+        res.status(200).json({ success: true, data: merged });
     } catch (err) {
         console.log(err.stack);
         return res.status(500).json({ success: false, error: 'Cannot update Reservation' });
