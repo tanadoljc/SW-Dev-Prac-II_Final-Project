@@ -45,11 +45,4 @@ const MassageShopSchema = new mongoose.Schema({
     toObject: { virtuals: true }
 });
 
-MassageShopSchema.virtual('reservations', {
-    ref: 'Reservation',
-    localField: '_id',
-    foreignField: 'massageShop',
-    justOne: false
-});
-
 module.exports = mongoose.model('MassageShop',MassageShopSchema);
