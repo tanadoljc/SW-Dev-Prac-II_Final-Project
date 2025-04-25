@@ -153,7 +153,7 @@ exports.addReservation = async (req, res, next) => {
     try {
         req.body.massageShop = req.params.massageShopId;
 
-        const massageShop = await MassageShop.findById(req.params.massageShopId);
+        let massageShop = await MassageShop.findById(req.params.massageShopId);
 
         function isValidTimeFormat(timeStr) {
             const regex = /^(0?[1-9]|1[0-2]):[0-5][0-9] (AM|PM)$/;
@@ -182,14 +182,6 @@ exports.addReservation = async (req, res, next) => {
 
         const dateOnly = new Date(req.body.resvDate).toISOString().split('T')[0];
 
-        const existingReservations = await Reservation.find({ 
-            massageShop: req.body.massageShop, 
-            resvDate: {
-                $gte: new Date(`${dateOnly}T00:00:00.000Z`),
-                $lt: new Date(`${dateOnly}T23:59:59.999Z`)
-            }
-         });
-
         function timeStringToMinutes(timeStr) {
             const [time, modifier] = timeStr.split(' ');
             let [hours, minutes] = time.split(':').map(Number);
@@ -203,21 +195,48 @@ exports.addReservation = async (req, res, next) => {
         const startTimeMinutes = timeStringToMinutes(req.body.startTime);
         const endTimeMinutes = timeStringToMinutes(req.body.endTime);
 
-        if (startTimeMinutes >= endTimeMinutes) {
-            return res.status(400).json({ success: false, message: `Invalid time setting` });
+        if (startTimeMinutes > endTimeMinutes) {
+            return res.status(400).json({ success: false, message: `Invalid time range` });
         }
 
-        const isOverlap = existingReservations.some((resv) => {
-            const resvStartTimeMinutes = timeStringToMinutes(resv.startTime);
-            const resvEndTimeMinutes = timeStringToMinutes(resv.endTime);
+        if (dateOnly in massageShop.busyTime) {
+            const isOverlap = massageShop.busyTime[dateOnly].some((resv) => {
+                const resvStartTimeMinutes = timeStringToMinutes(resv.startTime);
+                const resvEndTimeMinutes = timeStringToMinutes(resv.endTime);
+    
+                return (
+                    (startTimeMinutes <= resvEndTimeMinutes && endTimeMinutes >= resvStartTimeMinutes)
+                );
+            });
+    
+            if (isOverlap) {
+                return res.status(400).json({ success: false, message: 'This time slot already reserved' });
+            }
+    
+            for (let i = 0; i < massageShop.busyTime[dateOnly].length; i++) {
+                const timeRange = massageShop.busyTime[dateOnly][i];
+                const [startRange, endRange] = timeRange.split(' - ');
+                const startRangeMinutes = timeStringToMinutes(startRange);
+                const endRangeMinutes = timeStringToMinutes(endRange);
+                if (endTimeMinutes < startRangeMinutes) {
+                    massageShop.busyTime[dateOnly].splice(i, 0, `${req.body.startTime} - ${req.body.endTime}`);
+                    break;
+                }
+                if (startTimeMinutes > endRangeMinutes) {
+                    massageShop.busyTime[dateOnly].splice(i + 1, 0, `${req.body.startTime} - ${req.body.endTime}`);
+                    break;
+                }
+            }
+        }
+        else massageShop.busyTime[dateOnly] = new Array(`${req.body.startTime} - ${req.body.endTime}`);
 
-            return (
-                (startTimeMinutes <= resvEndTimeMinutes && endTimeMinutes >= resvStartTimeMinutes)
-            );
-        });
+        const massageShopResult = await MassageShop.findByIdAndUpdate(req.params.massageShopId, massageShop, {
+            new: true,
+            runValidators: true
+        }); 
 
-        if (isOverlap) {
-            return res.status(400).json({ success: false, message: 'This time slot already reserved' });
+        if (!massageShopResult) {
+            return res.status(400).json({ success: false, message: 'Massage shop not update successfully' });
         }
 
         const reservation = await Reservation.create(req.body);
@@ -234,9 +253,23 @@ exports.addReservation = async (req, res, next) => {
 exports.updateReservation = async (req, res, next) => {
     try {
         let reservation = await Reservation.findById(req.params.id);
+        let massageShop = await MassageShop.findById(reservation.massageShop);
 
+        function isValidTimeFormat(timeStr) {
+            const regex = /^(0?[1-9]|1[0-2]):[0-5][0-9] (AM|PM)$/;
+            return regex.test(timeStr);
+        }
+
+        if (!isValidTimeFormat(req.body.startTime) || !isValidTimeFormat(req.body.endTime)) {
+            return res.status(400).json({ success: false, message: 'Invalid time format. Use hh:mm AM/PM' });
+        }
+        
         if (!reservation) {
             return res.status(404).json({ success: false, message: `No reservation with the id of ${req.params.id}` });
+        }
+
+        if (!massageShop) {
+            return res.status(404).json({ success: false, message: `No massage shop with the id of ${req.params.massageShopId}` });
         }
 
         // Make sure user is reservation owner
@@ -244,60 +277,68 @@ exports.updateReservation = async (req, res, next) => {
             return res.status(401).json({ success: false, message: `User with id of ${req.user.id} is not authorized to update this reservation` });
         }
 
+        let dateOnlyOld = new Date(reservation.resvDate).toISOString().split('T')[0];
+        const resvTime = `${reservation.startTime} - ${reservation.endTime}`
+
+        let alreadyDelete = false;
+
+        for (let i = 0; i < massageShop.busyTime[dateOnlyOld].length; i++) {
+            const timeRange = massageShop.busyTime[dateOnlyOld][i];
+            if (timeRange === resvTime) {
+                massageShop.busyTime[dateOnlyOld].splice(i, 1);
+                alreadyDelete = true;
+                break;
+            }
+        }
+
+        if(!alreadyDelete) {
+            return res.status(400).json({ success: false, message: `No reservation date ${resvTime} and time ${resvTime} to delete in massage shop with the id of ${reservation.massageShopId}` });
+        }
+
         const merged = { ...reservation.toObject(), ...req.body };
-
-        function isValidTimeFormat(timeStr) {
-            const regex = /^(0?[1-9]|1[0-2]):[0-5][0-9] (AM|PM)$/;
-            return regex.test(timeStr);
-        }
-
-        if (!isValidTimeFormat(merged.startTime) || !isValidTimeFormat(merged.endTime)) {
-            return res.status(400).json({ success: false, message: 'Invalid time format. Use hh:mm AM/PM' });
-        }
-
         const dateOnly = new Date(merged.resvDate).toISOString().split('T')[0];
 
-        const existingReservations = await Reservation.find({ 
-            massageShop: merged.massageShop, 
-            resvDate: {
-                $gte: new Date(`${dateOnly}T00:00:00.000Z`),
-                $lt: new Date(`${dateOnly}T23:59:59.999Z`)
+        if (dateOnly in massageShop.busyTime) {
+            const isOverlap = massageShop.busyTime[dateOnly].some((resv) => {
+                const resvStartTimeMinutes = timeStringToMinutes(resv.startTime);
+                const resvEndTimeMinutes = timeStringToMinutes(resv.endTime);
+    
+                return (
+                    (startTimeMinutes <= resvEndTimeMinutes && endTimeMinutes >= resvStartTimeMinutes)
+                );
+            });
+    
+            if (isOverlap) {
+                return res.status(400).json({ success: false, message: 'This time slot already reserved' });
             }
-         });
-
-        function timeStringToMinutes(timeStr) {
-            const [time, modifier] = timeStr.split(' ');
-            let [hours, minutes] = time.split(':').map(Number);
-        
-            if (modifier === 'PM' && hours !== 12) hours += 12;
-            if (modifier === 'AM' && hours === 12) hours = 0;
-        
-            return hours * 60 + minutes;
+    
+            for (let i = 0; i < massageShop.busyTime[dateOnly].length; i++) {
+                const timeRange = massageShop.busyTime[dateOnly][i];
+                const [startRange, endRange] = timeRange.split(' - ');
+                const startRangeMinutes = timeStringToMinutes(startRange);
+                const endRangeMinutes = timeStringToMinutes(endRange);
+                if (endTimeMinutes < startRangeMinutes) {
+                    massageShop.busyTime[dateOnly].splice(i, 0, `${merged.startTime} - ${merged.endTime}`);
+                    break;
+                }
+                if (startTimeMinutes > endRangeMinutes) {
+                    massageShop.busyTime[dateOnly].splice(i + 1, 0, `${merged.startTime} - ${merged.endTime}`);
+                    break;
+                }
+            }
         }
-        
-        const startTimeMinutes = timeStringToMinutes(merged.startTime);
-        const endTimeMinutes = timeStringToMinutes(merged.endTime);
+        else massageShop.busyTime[dateOnly] = new Array(`${merged.startTime} - ${merged.endTime}`);
 
-        if (startTimeMinutes >= endTimeMinutes) {
-            return res.status(400).json({ success: false, message: `Invalid time setting` });
-        }
+        const massageShopResult = await MassageShop.findByIdAndUpdate(req.params.massageShopId, massageShop, {
+            new: true,
+            runValidators: true
+        }); 
 
-        const isOverlap = existingReservations.some((resv) => {
-            if (req.params.id == resv.id) return false;
-
-            const resvStartTimeMinutes = timeStringToMinutes(resv.startTime);
-            const resvEndTimeMinutes = timeStringToMinutes(resv.endTime);
-
-            return (
-                (startTimeMinutes <= resvEndTimeMinutes && endTimeMinutes >= resvStartTimeMinutes)
-            );
-        });
-
-        if (isOverlap) {
-            return res.status(400).json({ success: false, message: 'This time slot already reserved' });
+        if (!massageShopResult) {
+            return res.status(400).json({ success: false, message: 'Massage shop not update successfully' });
         }
 
-        reservation = await Reservation.findByIdAndUpdate(req.params.id, req.body, {
+        reservation = await Reservation.findByIdAndUpdate(req.params.id, merged, {
             new: true,
             runValidators: true
         });

@@ -22,7 +22,11 @@ const MassageShopSchema = new mongoose.Schema({
     postalcode:{
         type: String,
         required: [true, 'Please add a postalcode'],
-        maxlength: [5,'Postal Code can not be more than 5 digits']
+        maxlength: [5, 'Postal Code can not be more than 5 digits']
+    },
+    busyTime:{
+        type: Object,
+        required: false
     },
     tel:{
         type: String,

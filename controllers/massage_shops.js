@@ -87,6 +87,34 @@ exports.getMassageShop = async (req, res, next) => {
 // @route   POST /api/v1/massageshops
 // @access  Public
 exports.createMassageShop = async (req, res, next) => {
+    function isValidTimeFormat(timeStr) {
+        const regex = /^(0?[1-9]|1[0-2]):[0-5][0-9] (AM|PM)$/;
+        return regex.test(timeStr);
+    }
+
+    if (!isValidTimeFormat(req.body.openTime) || !isValidTimeFormat(req.body.closeTime)) {
+        return res.status(400).json({ success: false, message: 'Invalid time format. Use hh:mm AM/PM' });
+    }
+
+    function timeStringToMinutes(timeStr) {
+        const [time, modifier] = timeStr.split(' ');
+        let [hours, minutes] = time.split(':').map(Number);
+    
+        if (modifier === 'PM' && hours !== 12) hours += 12;
+        if (modifier === 'AM' && hours === 12) hours = 0;
+    
+        return hours * 60 + minutes;
+    }
+    
+    const openTimeMinutes = timeStringToMinutes(req.body.openTime);
+    const closeTimeMinutes = timeStringToMinutes(req.body.closeTime);
+
+    if (openTimeMinutes > closeTimeMinutes) {
+        return res.status(400).json({ success: false, message: `Invalid time range` });
+    }
+
+    req.body.busyTime = new Object();
+
     const massageShop = await MassageShop.create(req.body);
     res.status(201).json({ success: true, data: massageShop });
 }
@@ -96,10 +124,13 @@ exports.createMassageShop = async (req, res, next) => {
 // @access  Public
 exports.updateMassageShop = async (req, res, next) => {
     try {
+        if (req.body.busyTime) {
+            return res.status(400).json({ success: false, message: 'busyTime can not update, Please remove busyTime field' })
+        }
         const massageShop = await MassageShop.findByIdAndUpdate(req.params.id, req.body, {
             new: true,
             runValidators: true
-        });
+        }); 
 
         if (!massageShop) {
             return res.status(400).json({ success: false, message: 'Massage shop not found' });
