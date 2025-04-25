@@ -255,6 +255,11 @@ exports.addReservation = async (req, res, next) => {
 exports.updateReservation = async (req, res, next) => {
     try {
         let reservation = await Reservation.findById(req.params.id);
+
+        if (!reservation) {
+            return res.status(404).json({ success: false, message: `No reservation with the id of ${req.params.id}` });
+        }
+
         let massageShop = await MassageShop.findById(reservation.massageShop._id);
 
         function isValidTimeFormat(timeStr) {
@@ -264,10 +269,6 @@ exports.updateReservation = async (req, res, next) => {
 
         if (!isValidTimeFormat(req.body.startTime) || !isValidTimeFormat(req.body.endTime)) {
             return res.status(400).json({ success: false, message: 'Invalid time format. Use hh:mm AM/PM' });
-        }
-        
-        if (!reservation) {
-            return res.status(404).json({ success: false, message: `No reservation with the id of ${req.params.id}` });
         }
 
         if (!massageShop) {
@@ -382,8 +383,32 @@ exports.deleteReservation = async (req, res, next) => {
             return res.status(404).json({ success: false, message: `No reservation with the id of ${req.params.id}` });
         }
 
-        if( reservation.user.toString() !== req.user.id && req.user.role !== 'admin') {
+        let massageShop = await MassageShop.findById(reservation.massageShop._id);
+
+        if (!massageShop) {
+            return res.status(404).json({ success: false, message: `No massage shop with the id of ${req.params.massageShopId}` });
+        }
+
+        if (reservation.user.toString() !== req.user.id && req.user.role !== 'admin') {
             return res.status(401).json({ success: false, message: `User with id of ${req.user.id} is not authorized to delete this reservation` });
+        }
+
+        let dateOnlyOld = new Date(reservation.resvDate).toISOString().split('T')[0];
+        const resvTime = `${reservation.startTime} - ${reservation.endTime}`
+
+        let alreadyDelete = false;
+
+        for (let i = 0; i < massageShop.busyTime[dateOnlyOld].length; i++) {
+            const timeRange = massageShop.busyTime[dateOnlyOld][i];
+            if (timeRange === resvTime) {
+                massageShop.busyTime[dateOnlyOld].splice(i, 1);
+                alreadyDelete = true;
+                break;
+            }
+        }
+
+        if(!alreadyDelete) {
+            return res.status(400).json({ success: false, message: `No reservation date ${dateOnlyOld} and time ${resvTime} to delete in massage shop with the id of ${reservation.massageShopId._id}` });
         }
 
         await reservation.deleteOne({ _id: req.params.id });
