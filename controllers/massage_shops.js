@@ -15,11 +15,11 @@ exports.getMassageShops = async (req, res, next) => {
 
     // handle [lt, lte, gt, gte]
     let queryStr = JSON.stringify(reqQuery);
-    console.log(queryStr)
+    // console.log(queryStr)
     queryStr = queryStr.replace(/\b(gt|gte|lt|lte|in)\b/g, match => `$${match}`);
 
     // query ------------------------------------
-    query = MassageShop.find(JSON.parse(queryStr)).populate('reservations');
+    query = MassageShop.find(JSON.parse(queryStr));
 
     // "select" fields
     if(req.query.select) {
@@ -114,7 +114,7 @@ exports.createMassageShop = async (req, res, next) => {
     }
 
     req.body.busyTime = new Object();
-    console.log(req.body);
+    // console.log(req.body);
 
     const shopData = {
         ...req.body,

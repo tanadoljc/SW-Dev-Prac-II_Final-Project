@@ -12,7 +12,7 @@ exports.getReservations = async (req, res, next) => {
         queryObj.user = req.user.id;
     } else {
         if (req.params.massageShopId) {
-            console.log(req.params.massageShopId);
+            // console.log(req.params.massageShopId);
             queryObj.massageShop = req.params.massageShopId;
         }
     }
@@ -167,7 +167,7 @@ exports.addReservation = async (req, res, next) => {
         if (!massageShop) {
             return res.status(404).json({ success: false, message: `No massage shop with the id of ${req.params.massageShopId}` });
         }
-        console.log(req.body);
+        // console.log(req.body);
 
         // Add user ID to req.body
         req.body.user = req.user.id;
@@ -183,7 +183,7 @@ exports.addReservation = async (req, res, next) => {
         const dateOnly = new Date(req.body.resvDate).toISOString().split('T')[0];
 
         function timeStringToMinutes(timeStr) {
-            console.log(timeStr);
+            // console.log(timeStr);
             const [time, modifier] = timeStr.split(' ');
             let [hours, minutes] = time.split(':').map(Number);
         
@@ -302,7 +302,7 @@ exports.updateReservation = async (req, res, next) => {
         const dateOnly = new Date(merged.resvDate).toISOString().split('T')[0];
 
         function timeStringToMinutes(timeStr) {
-            console.log(timeStr);
+            // console.log(timeStr);
             const [time, modifier] = timeStr.split(' ');
             let [hours, minutes] = time.split(':').map(Number);
         
