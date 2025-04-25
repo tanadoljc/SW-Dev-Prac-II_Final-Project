@@ -114,8 +114,14 @@ exports.createMassageShop = async (req, res, next) => {
     }
 
     req.body.busyTime = new Object();
+    console.log(req.body);
 
-    const massageShop = await MassageShop.create(req.body);
+    const shopData = {
+        ...req.body,
+        busyTime: req.body.busyTime ?? {} // fallback to {} if missing
+    };
+
+    const massageShop = await MassageShop.create(shopData);
     res.status(201).json({ success: true, data: massageShop });
 }
 

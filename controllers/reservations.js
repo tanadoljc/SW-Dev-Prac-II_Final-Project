@@ -183,6 +183,7 @@ exports.addReservation = async (req, res, next) => {
         const dateOnly = new Date(req.body.resvDate).toISOString().split('T')[0];
 
         function timeStringToMinutes(timeStr) {
+            console.log(timeStr);
             const [time, modifier] = timeStr.split(' ');
             let [hours, minutes] = time.split(':').map(Number);
         
@@ -195,14 +196,15 @@ exports.addReservation = async (req, res, next) => {
         const startTimeMinutes = timeStringToMinutes(req.body.startTime);
         const endTimeMinutes = timeStringToMinutes(req.body.endTime);
 
-        if (startTimeMinutes > endTimeMinutes) {
+        if (startTimeMinutes >= endTimeMinutes || startTimeMinutes < timeStringToMinutes(massageShop.openTime) || endTimeMinutes > timeStringToMinutes(massageShop.closeTime)) {
             return res.status(400).json({ success: false, message: `Invalid time range` });
         }
 
         if (dateOnly in massageShop.busyTime) {
             const isOverlap = massageShop.busyTime[dateOnly].some((resv) => {
-                const resvStartTimeMinutes = timeStringToMinutes(resv.startTime);
-                const resvEndTimeMinutes = timeStringToMinutes(resv.endTime);
+                const [resvStartRange, resvEndRange] = resv.split(' - ');
+                const resvStartTimeMinutes = timeStringToMinutes(resvStartRange);
+                const resvEndTimeMinutes = timeStringToMinutes(resvEndRange);
     
                 return (
                     (startTimeMinutes <= resvEndTimeMinutes && endTimeMinutes >= resvStartTimeMinutes)
@@ -298,10 +300,29 @@ exports.updateReservation = async (req, res, next) => {
         const merged = { ...reservation.toObject(), ...req.body };
         const dateOnly = new Date(merged.resvDate).toISOString().split('T')[0];
 
+        function timeStringToMinutes(timeStr) {
+            console.log(timeStr);
+            const [time, modifier] = timeStr.split(' ');
+            let [hours, minutes] = time.split(':').map(Number);
+        
+            if (modifier === 'PM' && hours !== 12) hours += 12;
+            if (modifier === 'AM' && hours === 12) hours = 0;
+        
+            return hours * 60 + minutes;
+        }
+        
+        const startTimeMinutes = timeStringToMinutes(merged.startTime);
+        const endTimeMinutes = timeStringToMinutes(merged.endTime);
+
+        if (startTimeMinutes >= endTimeMinutes || startTimeMinutes < timeStringToMinutes(massageShop.openTime) || endTimeMinutes > timeStringToMinutes(massageShop.closeTime)) {
+            return res.status(400).json({ success: false, message: `Invalid time range` });
+        }
+
         if (dateOnly in massageShop.busyTime) {
             const isOverlap = massageShop.busyTime[dateOnly].some((resv) => {
-                const resvStartTimeMinutes = timeStringToMinutes(resv.startTime);
-                const resvEndTimeMinutes = timeStringToMinutes(resv.endTime);
+                const [resvStartRange, resvEndRange] = resv.split(' - ');
+                const resvStartTimeMinutes = timeStringToMinutes(resvStartRange);
+                const resvEndTimeMinutes = timeStringToMinutes(resvEndRange);
     
                 return (
                     (startTimeMinutes <= resvEndTimeMinutes && endTimeMinutes >= resvStartTimeMinutes)
@@ -335,7 +356,7 @@ exports.updateReservation = async (req, res, next) => {
         }); 
 
         if (!massageShopResult) {
-            return res.status(400).json({ success: false, message: 'Massage shop not update successfully' });
+            return res.status(400).json({ success: false, message: 'Massage shop not update successfully', data: massageShop });
         }
 
         reservation = await Reservation.findByIdAndUpdate(req.params.id, merged, {

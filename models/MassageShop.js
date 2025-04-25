@@ -26,6 +26,7 @@ const MassageShopSchema = new mongoose.Schema({
     },
     busyTime:{
         type: Object,
+        default: {}, 
         required: false
     },
     tel:{
