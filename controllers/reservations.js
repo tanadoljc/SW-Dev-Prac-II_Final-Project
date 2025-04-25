@@ -200,7 +200,7 @@ exports.addReservation = async (req, res, next) => {
             return res.status(400).json({ success: false, message: `Invalid time range` });
         }
 
-        if (dateOnly in massageShop.busyTime) {
+        if (dateOnly in massageShop.busyTime && massageShop.busyTime[dateOnly].length > 0) {
             const isOverlap = massageShop.busyTime[dateOnly].some((resv) => {
                 const [resvStartRange, resvEndRange] = resv.split(' - ');
                 const resvStartTimeMinutes = timeStringToMinutes(resvStartRange);
@@ -319,7 +319,7 @@ exports.updateReservation = async (req, res, next) => {
             return res.status(400).json({ success: false, message: `Invalid time range` });
         }
 
-        if (dateOnly in massageShop.busyTime) {
+        if (dateOnly in massageShop.busyTime && massageShop.busyTime[dateOnly].length > 0) {
             const isOverlap = massageShop.busyTime[dateOnly].some((resv) => {
                 const [resvStartRange, resvEndRange] = resv.split(' - ');
                 const resvStartTimeMinutes = timeStringToMinutes(resvStartRange);
@@ -410,6 +410,11 @@ exports.deleteReservation = async (req, res, next) => {
         if(!alreadyDelete) {
             return res.status(400).json({ success: false, message: `No reservation date ${dateOnlyOld} and time ${resvTime} to delete in massage shop with the id of ${reservation.massageShopId._id}` });
         }
+
+        await MassageShop.findByIdAndUpdate(reservation.massageShop._id, massageShop, {
+            new: true,
+            runValidators: true
+        }); 
 
         await reservation.deleteOne({ _id: req.params.id });
 
