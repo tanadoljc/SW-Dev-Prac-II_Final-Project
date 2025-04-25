@@ -255,7 +255,7 @@ exports.addReservation = async (req, res, next) => {
 exports.updateReservation = async (req, res, next) => {
     try {
         let reservation = await Reservation.findById(req.params.id);
-        let massageShop = await MassageShop.findById(reservation.massageShop);
+        let massageShop = await MassageShop.findById(reservation.massageShop._id);
 
         function isValidTimeFormat(timeStr) {
             const regex = /^(0?[1-9]|1[0-2]):[0-5][0-9] (AM|PM)$/;
@@ -294,7 +294,7 @@ exports.updateReservation = async (req, res, next) => {
         }
 
         if(!alreadyDelete) {
-            return res.status(400).json({ success: false, message: `No reservation date ${resvTime} and time ${resvTime} to delete in massage shop with the id of ${reservation.massageShopId}` });
+            return res.status(400).json({ success: false, message: `No reservation date ${dateOnlyOld} and time ${resvTime} to delete in massage shop with the id of ${reservation.massageShopId._id}` });
         }
 
         const merged = { ...reservation.toObject(), ...req.body };
@@ -350,7 +350,7 @@ exports.updateReservation = async (req, res, next) => {
         }
         else massageShop.busyTime[dateOnly] = new Array(`${merged.startTime} - ${merged.endTime}`);
 
-        const massageShopResult = await MassageShop.findByIdAndUpdate(req.params.massageShopId, massageShop, {
+        const massageShopResult = await MassageShop.findByIdAndUpdate(reservation.massageShop._id, massageShop, {
             new: true,
             runValidators: true
         }); 
