@@ -160,7 +160,7 @@ exports.addReservation = async (req, res, next) => {
             return regex.test(timeStr);
         }
 
-        if(!isValidTimeFormat(req.body.startTime) || !isValidTimeFormat(req.body.endTime)) {
+        if (!isValidTimeFormat(req.body.startTime) || !isValidTimeFormat(req.body.endTime)) {
             return res.status(400).json({ success: false, message: 'Invalid time format. Use hh:mm AM/PM' });
         }
 
@@ -203,6 +203,10 @@ exports.addReservation = async (req, res, next) => {
         const startTimeMinutes = timeStringToMinutes(req.body.startTime);
         const endTimeMinutes = timeStringToMinutes(req.body.endTime);
 
+        if (startTimeMinutes >= endTimeMinutes) {
+            return res.status(400).json({ success: false, message: `Invalid time setting` });
+        }
+
         const isOverlap = existingReservations.some((resv) => {
             const resvStartTimeMinutes = timeStringToMinutes(resv.startTime);
             const resvEndTimeMinutes = timeStringToMinutes(resv.endTime);
@@ -241,6 +245,16 @@ exports.updateReservation = async (req, res, next) => {
         }
 
         const merged = { ...reservation.toObject(), ...req.body };
+
+        function isValidTimeFormat(timeStr) {
+            const regex = /^(0?[1-9]|1[0-2]):[0-5][0-9] (AM|PM)$/;
+            return regex.test(timeStr);
+        }
+
+        if (!isValidTimeFormat(merged.startTime) || !isValidTimeFormat(merged.endTime)) {
+            return res.status(400).json({ success: false, message: 'Invalid time format. Use hh:mm AM/PM' });
+        }
+
         const dateOnly = new Date(merged.resvDate).toISOString().split('T')[0];
 
         const existingReservations = await Reservation.find({ 
@@ -264,7 +278,13 @@ exports.updateReservation = async (req, res, next) => {
         const startTimeMinutes = timeStringToMinutes(merged.startTime);
         const endTimeMinutes = timeStringToMinutes(merged.endTime);
 
+        if (startTimeMinutes >= endTimeMinutes) {
+            return res.status(400).json({ success: false, message: `Invalid time setting` });
+        }
+
         const isOverlap = existingReservations.some((resv) => {
+            if (req.params.id == resv.id) return false;
+
             const resvStartTimeMinutes = timeStringToMinutes(resv.startTime);
             const resvEndTimeMinutes = timeStringToMinutes(resv.endTime);
 
